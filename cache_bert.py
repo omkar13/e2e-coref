@@ -11,6 +11,11 @@ import sys
 
 import bert
 
+from bert import run_classifier
+from bert import optimization
+from bert import tokenization
+
+import pdb
 
 OUTPUT_DIR = "/scratch/ovd208/nlu/my_e2e-coref/e2e-coref/bert_output_dir"
 
@@ -18,6 +23,8 @@ OUTPUT_DIR = "/scratch/ovd208/nlu/my_e2e-coref/e2e-coref/bert_output_dir"
 def create_model(is_predicting, input_ids, input_mask, segment_ids, labels,
                  num_labels):
   """Creates a classification model."""
+
+  BERT_MODEL_HUB = "https://tfhub.dev/google/bert_uncased_L-12_H-768_A-12/1"
 
   bert_module = hub.Module(
       BERT_MODEL_HUB,
@@ -33,9 +40,12 @@ def create_model(is_predicting, input_ids, input_mask, segment_ids, labels,
 
   # Use "pooled_output" for classification tasks on an entire sentence.
   # Use "sequence_outputs" for token-level output.
-  output_layer = bert_outputs["sequence_outputs"]
+  output_layer = bert_outputs["sequence_output"]
 
-  explore output_layer
+  #explore output_layer
+  pdb.set_trace()
+  #print(1/0)
+
   hidden_size = output_layer.shape[-1].value
 
   # If we're predicting, we want predicted labels and the probabiltiies.
@@ -60,8 +70,6 @@ def model_fn_builder(num_labels, learning_rate, num_train_steps,
 
     is_predicting = (mode == tf.estimator.ModeKeys.PREDICT)
     
-    check is_predicting is true or not
-
     # TRAIN and EVAL
     if not is_predicting:
 
@@ -122,8 +130,7 @@ def model_fn_builder(num_labels, learning_rate, num_train_steps,
             loss=loss,
             eval_metric_ops=eval_metrics)
     else:
-      (output_layer_emb) = create_model(
-        is_predicting, input_ids, input_mask, segment_ids, label_ids, num_labels)
+      (output_layer_emb) = create_model(is_predicting, input_ids, input_mask, segment_ids, label_ids, num_labels)
 
       predictions = {
           'emb': output_layer_emb
@@ -139,7 +146,7 @@ def cache_dataset(data_path, session, token_ph, len_ph, lm_emb, out_file):
   BERT_MODEL_HUB = "https://tfhub.dev/google/bert_uncased_L-12_H-768_A-12/1"
 
   def create_tokenizer_from_hub_module():
-  """Get the vocab file and casing info from the Hub module."""
+    """Get the vocab file and casing info from the Hub module."""
     with tf.Graph().as_default():
       bert_module = hub.Module(BERT_MODEL_HUB)
       tokenization_info = bert_module(signature="tokenization_info", as_dict=True)
@@ -147,8 +154,7 @@ def cache_dataset(data_path, session, token_ph, len_ph, lm_emb, out_file):
         vocab_file, do_lower_case = sess.run([tokenization_info["vocab_file"],
                                             tokenization_info["do_lower_case"]])
       
-    return bert.tokenization.FullTokenizer(
-      vocab_file=vocab_file, do_lower_case=do_lower_case)
+    return bert.tokenization.FullTokenizer(vocab_file=vocab_file, do_lower_case=do_lower_case)
 
   tokenizer = create_tokenizer_from_hub_module()
 
@@ -157,6 +163,7 @@ def cache_dataset(data_path, session, token_ph, len_ph, lm_emb, out_file):
 
   run_config = tf.estimator.RunConfig(model_dir=OUTPUT_DIR)
 
+  label_list = [1]
   model_fn = model_fn_builder(num_labels=len(label_list), learning_rate=0.001, num_train_steps=1, num_warmup_steps = 1)    
 
   estimator = tf.estimator.Estimator(
@@ -175,11 +182,12 @@ def cache_dataset(data_path, session, token_ph, len_ph, lm_emb, out_file):
       example = json.loads(line)
       sentences = example["sentences"]
 
-      check sentences format - need a single string
+      sentences = " ".join([" ".join(s) for s in sentences])
+
+      #check sentences format - need a single string
 
       bert_input = bert.run_classifier.InputExample(guid=None, text_a = sentences, text_b = None, label = 1)
       
-      label_list = [1]
 
       features = bert.run_classifier.convert_examples_to_features([bert_input], label_list, MAX_SEQ_LENGTH, tokenizer)
 
@@ -190,35 +198,16 @@ def cache_dataset(data_path, session, token_ph, len_ph, lm_emb, out_file):
         drop_remainder=False)
 
       pred = estimator.predict(current_input_fn)
- 
-      save this pred["emb"]
 
-      """
-      max_sentence_length = max(len(s) for s in sentences)
-      tokens = [[""] * max_sentence_length for _ in sentences]
-      text_len = np.array([len(s) for s in sentences])
-      for i, sentence in enumerate(sentences):
-        for j, word in enumerate(sentence):
-          tokens[i][j] = word
-      tokens = np.array(tokens)
-      tf_lm_emb = session.run(lm_emb, feed_dict={
-          token_ph: tokens,
-          len_ph: text_len
-      })
-      file_key = example["doc_key"].replace("/", ":")
-      group = out_file.create_group(file_key)
-      for i, (e, l) in enumerate(zip(tf_lm_emb, text_len)):
-        e = e[:l, :, :]
-        group[str(i)] = e
-      if doc_num % 10 == 0:
-        print("Cached {} documents in {}".format(doc_num + 1, data_path))
-
-      """
+      print(next(pred))
+      #save this pred["emb"]
+      pdb.set_trace()
+      #print(1/0)
 
 if __name__ == "__main__":
-  token_ph, len_ph, lm_emb = build_bert()
+  #token_ph, len_ph, lm_emb = build_bert()
   with tf.Session() as session:
     session.run(tf.global_variables_initializer())
     with h5py.File("bert_cache.hdf5", "w") as out_file:
       for json_filename in sys.argv[1:]:
-        cache_dataset(json_filename, session, token_ph, len_ph, lm_emb, out_file)
+        cache_dataset(json_filename, session, None, None, None, out_file)
