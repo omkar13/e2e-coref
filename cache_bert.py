@@ -23,7 +23,7 @@ OUTPUT_DIR = "/scratch/ovd208/nlu/my_e2e-coref/e2e-coref/bert_output_dir"
 def create_model(is_predicting, input_ids, input_mask, segment_ids, labels,
                  num_labels):
   """Creates a classification model."""
-
+  """Check docs here: https://tfhub.dev/google/bert_uncased_L-12_H-768_A-12/1"""
   BERT_MODEL_HUB = "https://tfhub.dev/google/bert_uncased_L-12_H-768_A-12/1"
 
   bert_module = hub.Module(
@@ -42,17 +42,11 @@ def create_model(is_predicting, input_ids, input_mask, segment_ids, labels,
   # Use "sequence_outputs" for token-level output.
   output_layer = bert_outputs["sequence_output"]
 
-  #explore output_layer
-  pdb.set_trace()
-  #print(1/0)
+  """output_layer dimension - [batch_size, max_sequence_length, hidden_size]"""
 
   hidden_size = output_layer.shape[-1].value
 
-  # If we're predicting, we want predicted labels and the probabiltiies.
-  if is_predicting:
-    return (output_layer_emb)
-
-  return (output_layer_emb)
+  return output_layer
 
 
 # model_fn_builder actually creates our model function
@@ -130,7 +124,7 @@ def model_fn_builder(num_labels, learning_rate, num_train_steps,
             loss=loss,
             eval_metric_ops=eval_metrics)
     else:
-      (output_layer_emb) = create_model(is_predicting, input_ids, input_mask, segment_ids, label_ids, num_labels)
+      output_layer_emb = create_model(is_predicting, input_ids, input_mask, segment_ids, label_ids, num_labels)
 
       predictions = {
           'emb': output_layer_emb
